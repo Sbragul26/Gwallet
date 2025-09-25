@@ -58,6 +58,7 @@ dependencies {
     implementation("com.android.volley:volley:1.2.1")
 
     implementation("com.itextpdf:itextpdf:5.5.13.3")
+    implementation("androidx.core:core:1.12.0")
 // Or latest version
 
 
