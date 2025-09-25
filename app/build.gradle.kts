@@ -54,6 +54,8 @@ dependencies {
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
 // Play Services Code Scanner
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    implementation("androidx.cardview:cardview:1.0.0")
+    implementation("com.android.volley:volley:1.2.1")
 
 
 }
