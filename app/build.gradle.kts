@@ -57,5 +57,8 @@ dependencies {
     implementation("androidx.cardview:cardview:1.0.0")
     implementation("com.android.volley:volley:1.2.1")
 
+    implementation("com.itextpdf:itextpdf:5.5.13.3")
+// Or latest version
+
 
 }

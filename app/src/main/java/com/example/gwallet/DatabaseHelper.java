@@ -6,13 +6,13 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
-import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME = "GWallet.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2; // Incremented version due to schema change
 
     // Table names
     private static final String TABLE_BALANCE = "balance";
@@ -31,6 +31,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String TRANS_SERVER_RESPONSE = "server_response";
     private static final String TRANS_TIMESTAMP = "timestamp";
     private static final String TRANS_STATUS = "status"; // SUCCESS, FAILED, PENDING
+    private static final String TRANS_PDF_PATH = "pdf_path"; // New column for PDF path
+
+    private static final String TAG = "DatabaseHelper";
 
     public DatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -45,7 +48,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 BALANCE_UPDATED_AT + " DATETIME DEFAULT CURRENT_TIMESTAMP" +
                 ")";
 
-        // Create transactions table
+        // Create transactions table with pdf_path column
         String createTransactionsTable = "CREATE TABLE " + TABLE_TRANSACTIONS + " (" +
                 TRANS_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 TRANS_AMOUNT + " REAL NOT NULL, " +
@@ -53,7 +56,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 TRANS_JSON_DATA + " TEXT, " +
                 TRANS_SERVER_RESPONSE + " TEXT, " +
                 TRANS_TIMESTAMP + " DATETIME DEFAULT CURRENT_TIMESTAMP, " +
-                TRANS_STATUS + " TEXT DEFAULT 'PENDING'" +
+                TRANS_STATUS + " TEXT DEFAULT 'PENDING', " +
+                TRANS_PDF_PATH + " TEXT" + // Added PDF path column
                 ")";
 
         db.execSQL(createBalanceTable);
@@ -64,14 +68,17 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(BALANCE_AMOUNT, 5000.00);
         db.insert(TABLE_BALANCE, null, values);
 
-        Log.d("DatabaseHelper", "Database created successfully");
+        Log.d(TAG, "Database created successfully");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_BALANCE);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_TRANSACTIONS);
-        onCreate(db);
+        if (oldVersion < 2) {
+            // Add pdf_path column to transactions table
+            db.execSQL("ALTER TABLE " + TABLE_TRANSACTIONS + " ADD COLUMN " + TRANS_PDF_PATH + " TEXT");
+            Log.d(TAG, "Added pdf_path column to transactions table");
+        }
+        // Future schema upgrades can be handled here
     }
 
     // Balance operations
@@ -85,12 +92,11 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 BALANCE_ID + " DESC", "1");
 
         if (cursor.moveToFirst()) {
-            balance = cursor.getDouble(0);
+            balance = cursor.getDouble(cursor.getColumnIndexOrThrow(BALANCE_AMOUNT));
         }
         cursor.close();
-        db.close();
 
-        Log.d("DatabaseHelper", "Current balance retrieved: " + balance);
+        Log.d(TAG, "Current balance retrieved: " + balance);
         return balance;
     }
 
@@ -101,9 +107,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(BALANCE_UPDATED_AT, "datetime('now')");
 
         long result = db.insert(TABLE_BALANCE, null, values);
-        db.close();
 
-        Log.d("DatabaseHelper", "Balance updated to: " + newBalance);
+        Log.d(TAG, "Balance updated to: " + newBalance);
         return result != -1;
     }
 
@@ -130,11 +135,11 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(TRANS_UPI_ID, upiId);
         values.put(TRANS_JSON_DATA, jsonData);
         values.put(TRANS_STATUS, status);
+        values.put(TRANS_PDF_PATH, (String) null); // Initially no PDF path
 
         long transactionId = db.insert(TABLE_TRANSACTIONS, null, values);
-        db.close();
 
-        Log.d("DatabaseHelper", "Transaction inserted with ID: " + transactionId);
+        Log.d(TAG, "Transaction inserted with ID: " + transactionId);
         return transactionId;
     }
 
@@ -146,10 +151,25 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
         int rowsAffected = db.update(TABLE_TRANSACTIONS, values,
                 TRANS_ID + " = ?", new String[]{String.valueOf(transactionId)});
-        db.close();
 
-        Log.d("DatabaseHelper", "Transaction " + transactionId + " updated with response");
+        Log.d(TAG, "Transaction " + transactionId + " updated with response");
         return rowsAffected > 0;
+    }
+
+    public boolean updateTransactionPdfPath(long transactionId, String pdfPath) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(TRANS_PDF_PATH, pdfPath);
+
+        int rowsAffected = db.update(TABLE_TRANSACTIONS, values,
+                TRANS_ID + " = ?", new String[]{String.valueOf(transactionId)});
+
+        Log.d(TAG, "Transaction " + transactionId + " updated with PDF path: " + pdfPath);
+        return rowsAffected > 0;
+    }
+
+    public boolean clearTransactionPdfPath(long transactionId) {
+        return updateTransactionPdfPath(transactionId, null);
     }
 
     public List<TransactionData> getAllTransactions() {
@@ -169,12 +189,12 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 transaction.serverResponse = cursor.getString(cursor.getColumnIndexOrThrow(TRANS_SERVER_RESPONSE));
                 transaction.timestamp = cursor.getString(cursor.getColumnIndexOrThrow(TRANS_TIMESTAMP));
                 transaction.status = cursor.getString(cursor.getColumnIndexOrThrow(TRANS_STATUS));
+                transaction.pdfPath = cursor.getString(cursor.getColumnIndexOrThrow(TRANS_PDF_PATH));
                 transactions.add(transaction);
             } while (cursor.moveToNext());
         }
 
         cursor.close();
-        db.close();
         return transactions;
     }
 
@@ -195,12 +215,38 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 transaction.serverResponse = cursor.getString(cursor.getColumnIndexOrThrow(TRANS_SERVER_RESPONSE));
                 transaction.timestamp = cursor.getString(cursor.getColumnIndexOrThrow(TRANS_TIMESTAMP));
                 transaction.status = cursor.getString(cursor.getColumnIndexOrThrow(TRANS_STATUS));
+                transaction.pdfPath = cursor.getString(cursor.getColumnIndexOrThrow(TRANS_PDF_PATH));
                 transactions.add(transaction);
             } while (cursor.moveToNext());
         }
 
         cursor.close();
-        db.close();
+        return transactions;
+    }
+
+    public List<TransactionData> getTransactionsWithPdfs() {
+        List<TransactionData> transactions = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.query(TABLE_TRANSACTIONS, null, TRANS_PDF_PATH + " IS NOT NULL", null, null, null,
+                TRANS_TIMESTAMP + " DESC");
+
+        if (cursor.moveToFirst()) {
+            do {
+                TransactionData transaction = new TransactionData();
+                transaction.id = cursor.getLong(cursor.getColumnIndexOrThrow(TRANS_ID));
+                transaction.amount = cursor.getDouble(cursor.getColumnIndexOrThrow(TRANS_AMOUNT));
+                transaction.upiId = cursor.getString(cursor.getColumnIndexOrThrow(TRANS_UPI_ID));
+                transaction.jsonData = cursor.getString(cursor.getColumnIndexOrThrow(TRANS_JSON_DATA));
+                transaction.serverResponse = cursor.getString(cursor.getColumnIndexOrThrow(TRANS_SERVER_RESPONSE));
+                transaction.timestamp = cursor.getString(cursor.getColumnIndexOrThrow(TRANS_TIMESTAMP));
+                transaction.status = cursor.getString(cursor.getColumnIndexOrThrow(TRANS_STATUS));
+                transaction.pdfPath = cursor.getString(cursor.getColumnIndexOrThrow(TRANS_PDF_PATH));
+                transactions.add(transaction);
+            } while (cursor.moveToNext());
+        }
+
+        cursor.close();
         return transactions;
     }
 
@@ -215,8 +261,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(BALANCE_AMOUNT, 5000.00);
         db.insert(TABLE_BALANCE, null, values);
 
-        db.close();
-        Log.d("DatabaseHelper", "All data cleared and reset to initial state");
+        Log.d(TAG, "All data cleared and reset to initial state");
     }
 
     // Data class for transactions
@@ -228,6 +273,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         public String serverResponse;
         public String timestamp;
         public String status;
+        public String pdfPath; // New field for PDF path
 
         @Override
         public String toString() {
@@ -237,6 +283,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     ", upiId='" + upiId + '\'' +
                     ", status='" + status + '\'' +
                     ", timestamp='" + timestamp + '\'' +
+                    ", pdfPath='" + pdfPath + '\'' +
                     '}';
         }
     }

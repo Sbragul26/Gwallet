@@ -177,43 +177,8 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <TextView
-                android:id="@+id/txtManageMoney"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Manage Your Money"
-                android:textSize="22sp"
-                android:textStyle="bold"
-                android:textColor="#FF333333"
-                android:fontFamily="sans-serif-medium"
-                android:layout_marginBottom="12dp" />
 
-            <Button
-                android:id="@+id/btnSeeTransactions"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:layout_marginBottom="12dp"
-                android:backgroundTint="#FF03DAC5"
-                android:text="See Transactions"
-                android:textSize="16sp"
-                android:textColor="#FFFFFF"
-                android:fontFamily="sans-serif-medium"
-                style="@style/Widget.AppCompat.Button.Borderless"
-                android:stateListAnimator="@null"
-                android:elevation="2dp" />
 
-            <Button
-                android:id="@+id/btnCheckBalance"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:backgroundTint="#FF03DAC5"
-                android:text="Check Balance"
-                android:textSize="16sp"
-                android:textColor="#FFFFFF"
-                android:fontFamily="sans-serif-medium"
-                style="@style/Widget.AppCompat.Button.Borderless"
-                android:stateListAnimator="@null"
-                android:elevation="2dp" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

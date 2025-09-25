@@ -88,6 +88,15 @@ public class HomePage extends AppCompatActivity {
                                 "PENDING"
                         );
 
+                        // Generate PDF for the transaction
+                        String pdfPath = GenPdf.generatePdfFromJson(jsonOutput, transactionId, this);
+                        if (pdfPath != null) {
+                            databaseHelper.updateTransactionPdfPath(transactionId, pdfPath);
+                            Log.d(TAG, "PDF generated and stored for transaction ID: " + transactionId);
+                        } else {
+                            Log.e(TAG, "Failed to generate PDF for transaction ID: " + transactionId);
+                        }
+
                         // Deduct money from database
                         if (databaseHelper.deductMoney(amount)) {
                             balance = databaseHelper.getCurrentBalance(); // Refresh balance
@@ -111,35 +120,56 @@ public class HomePage extends AppCompatActivity {
 
                     } else if (amount > balance) {
                         // Insert failed transaction
-                        databaseHelper.insertTransaction(
+                        long transactionId = databaseHelper.insertTransaction(
                                 amount,
                                 upiId != null ? upiId : "test@example.com",
                                 jsonOutput,
                                 "FAILED_INSUFFICIENT_BALANCE"
                         );
 
+                        // Generate PDF for failed transaction
+                        String pdfPath = GenPdf.generatePdfFromJson(jsonOutput, transactionId, this);
+                        if (pdfPath != null) {
+                            databaseHelper.updateTransactionPdfPath(transactionId, pdfPath);
+                            Log.d(TAG, "PDF generated for failed transaction ID: " + transactionId);
+                        }
+
                         txtJsonResponse.setText("Error: Insufficient balance\n\nScanned Details (JSON):\n" + jsonOutput);
                         Toast.makeText(this, "Insufficient balance", Toast.LENGTH_LONG).show();
                     } else {
                         // Insert failed transaction
-                        databaseHelper.insertTransaction(
+                        long transactionId = databaseHelper.insertTransaction(
                                 amount,
                                 upiId != null ? upiId : "test@example.com",
                                 jsonOutput,
                                 "FAILED_INVALID_AMOUNT"
                         );
 
+                        // Generate PDF for failed transaction
+                        String pdfPath = GenPdf.generatePdfFromJson(jsonOutput, transactionId, this);
+                        if (pdfPath != null) {
+                            databaseHelper.updateTransactionPdfPath(transactionId, pdfPath);
+                            Log.d(TAG, "PDF generated for failed transaction ID: " + transactionId);
+                        }
+
                         txtJsonResponse.setText("Error: Invalid amount scanned\n\nScanned Details (JSON):\n" + jsonOutput);
                         Toast.makeText(this, "Invalid amount scanned", Toast.LENGTH_LONG).show();
                     }
                 } catch (NumberFormatException e) {
                     // Insert failed transaction
-                    databaseHelper.insertTransaction(
+                    long transactionId = databaseHelper.insertTransaction(
                             0.0,
                             upiId != null ? upiId : "test@example.com",
                             jsonOutput,
                             "FAILED_INVALID_FORMAT"
                     );
+
+                    // Generate PDF for failed transaction
+                    String pdfPath = GenPdf.generatePdfFromJson(jsonOutput, transactionId, this);
+                    if (pdfPath != null) {
+                        databaseHelper.updateTransactionPdfPath(transactionId, pdfPath);
+                        Log.d(TAG, "PDF generated for failed transaction ID: " + transactionId);
+                    }
 
                     txtJsonResponse.setText("Error: Invalid amount format\n\nScanned Details (JSON):\n" + jsonOutput);
                     Toast.makeText(this, "Invalid amount format", Toast.LENGTH_LONG).show();
@@ -167,12 +197,21 @@ public class HomePage extends AppCompatActivity {
                     addMoneyJson.put("amount", addAmount);
                     addMoneyJson.put("new_balance", balance);
 
-                    databaseHelper.insertTransaction(
+                    long transactionId = databaseHelper.insertTransaction(
                             addAmount,
                             "SYSTEM",
                             addMoneyJson.toString(2),
                             "SUCCESS"
                     );
+
+                    // Generate PDF for add money transaction
+                    String pdfPath = GenPdf.generatePdfFromJson(addMoneyJson.toString(2), transactionId, this);
+                    if (pdfPath != null) {
+                        databaseHelper.updateTransactionPdfPath(transactionId, pdfPath);
+                        Log.d(TAG, "PDF generated for add money transaction ID: " + transactionId);
+                    } else {
+                        Log.e(TAG, "Failed to generate PDF for add money transaction ID: " + transactionId);
+                    }
                 } catch (Exception e) {
                     Log.e(TAG, "Error logging add money transaction: " + e.getMessage());
                 }
@@ -189,11 +228,12 @@ public class HomePage extends AppCompatActivity {
             scannerLauncher.launch(intent);
         });
 
-        // Initialize View Transactions Button (optional)
+        // Initialize View Transactions Button
         Button btnViewTransactions = findViewById(R.id.btnViewTransactions);
         if (btnViewTransactions != null) {
             btnViewTransactions.setOnClickListener(v -> {
-                showRecentTransactions();
+                Intent intent = new Intent(HomePage.this, PdfListActivity.class);
+                startActivity(intent);
             });
         }
 
@@ -455,8 +495,20 @@ public class HomePage extends AppCompatActivity {
                             String formattedJson = response.toString(2);
                             String scannedJson = convertToStructuredJson(scannedDetails);
 
+                            // Combine scanned JSON and server response for PDF
+                            String finalJson = "Scanned Details:\n" + scannedJson + "\n\nServer Response:\n" + formattedJson;
+
                             // Update transaction in database
                             databaseHelper.updateTransactionResponse(transactionId, formattedJson, "SUCCESS");
+
+                            // Generate PDF with combined JSON
+                            String pdfPath = GenPdf.generatePdfFromJson(finalJson, transactionId, this);
+                            if (pdfPath != null) {
+                                databaseHelper.updateTransactionPdfPath(transactionId, pdfPath);
+                                Log.d(TAG, "PDF generated for transaction ID: " + transactionId);
+                            } else {
+                                Log.e(TAG, "Failed to generate PDF for transaction ID: " + transactionId);
+                            }
 
                             txtJsonResponse.setText("Scanned QR Details (JSON):\n" + scannedJson + "\n\nServer Response:\n" + formattedJson);
                             Toast.makeText(this, "Payment confirmed on server!", Toast.LENGTH_SHORT).show();
@@ -488,7 +540,17 @@ public class HomePage extends AppCompatActivity {
                             }
                         }
                         databaseHelper.updateTransactionResponse(transactionId, errorMsg.toString(), "SERVER_ERROR");
-                        txtJsonResponse.setText("Scanned QR Details (JSON):\n" + convertToStructuredJson(scannedDetails) + "\n\n" + errorMsg);
+
+                        // Generate PDF for failed server response
+                        String scannedJson = convertToStructuredJson(scannedDetails);
+                        String finalJson = "Scanned Details:\n" + scannedJson + "\n\nError:\n" + errorMsg;
+                        String pdfPath = GenPdf.generatePdfFromJson(finalJson, transactionId, this);
+                        if (pdfPath != null) {
+                            databaseHelper.updateTransactionPdfPath(transactionId, pdfPath);
+                            Log.d(TAG, "PDF generated for failed transaction ID: " + transactionId);
+                        }
+
+                        txtJsonResponse.setText("Scanned QR Details (JSON):\n" + scannedJson + "\n\n" + errorMsg);
                         Toast.makeText(this, "Payment processed but server error", Toast.LENGTH_LONG).show();
                         Log.e(TAG, "Server error for transaction " + transactionId + ": " + errorMsg);
                     }
@@ -513,7 +575,17 @@ public class HomePage extends AppCompatActivity {
         } catch (Exception e) {
             String errorMsg = "Error preparing payment data: " + e.getMessage();
             databaseHelper.updateTransactionResponse(transactionId, errorMsg, "PREPARATION_ERROR");
-            txtJsonResponse.setText("Scanned QR Details (JSON):\n" + convertToStructuredJson(scannedDetails) + "\n\n" + errorMsg);
+
+            // Generate PDF for preparation error
+            String scannedJson = convertToStructuredJson(scannedDetails);
+            String finalJson = "Scanned Details:\n" + scannedJson + "\n\nError:\n" + errorMsg;
+            String pdfPath = GenPdf.generatePdfFromJson(finalJson, transactionId, this);
+            if (pdfPath != null) {
+                databaseHelper.updateTransactionPdfPath(transactionId, pdfPath);
+                Log.d(TAG, "PDF generated for failed transaction ID: " + transactionId);
+            }
+
+            txtJsonResponse.setText("Scanned QR Details (JSON):\n" + scannedJson + "\n\n" + errorMsg);
             Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
             Log.e(TAG, "Payment preparation error: " + e.getMessage());
         }
@@ -522,36 +594,6 @@ public class HomePage extends AppCompatActivity {
     // Helper method to update balance display
     private void updateBalanceDisplay() {
         txtBalance.setText(String.format("Rs %.2f", balance));
-    }
-
-    // Show recent transactions
-    private void showRecentTransactions() {
-        try {
-            var recentTransactions = databaseHelper.getRecentTransactions(10);
-            if (recentTransactions.isEmpty()) {
-                txtJsonResponse.setText("No transactions found");
-                return;
-            }
-
-            StringBuilder transactionsList = new StringBuilder();
-            transactionsList.append("Recent Transactions:\n\n");
-
-            for (var transaction : recentTransactions) {
-                transactionsList.append("ID: ").append(transaction.id).append("\n");
-                transactionsList.append("Amount: Rs ").append(String.format("%.2f", transaction.amount)).append("\n");
-                transactionsList.append("Status: ").append(transaction.status).append("\n");
-                transactionsList.append("Time: ").append(transaction.timestamp).append("\n");
-                if (transaction.upiId != null && !transaction.upiId.equals("SYSTEM")) {
-                    transactionsList.append("UPI ID: ").append(transaction.upiId).append("\n");
-                }
-                transactionsList.append("-------------------\n");
-            }
-
-            txtJsonResponse.setText(transactionsList.toString());
-        } catch (Exception e) {
-            txtJsonResponse.setText("Error loading transactions: " + e.getMessage());
-            Log.e(TAG, "Error loading transactions: " + e.getMessage());
-        }
     }
 
     // Search transactions
@@ -585,6 +627,9 @@ public class HomePage extends AppCompatActivity {
                 searchResults.append("Time: ").append(transaction.timestamp).append("\n");
                 if (transaction.upiId != null && !transaction.upiId.equals("SYSTEM")) {
                     searchResults.append("UPI ID: ").append(transaction.upiId).append("\n");
+                }
+                if (transaction.pdfPath != null) {
+                    searchResults.append("PDF: Available\n");
                 }
                 searchResults.append("-------------------\n");
             }
