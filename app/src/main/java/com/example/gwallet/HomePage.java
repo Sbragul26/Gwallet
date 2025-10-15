@@ -61,7 +61,9 @@ public class HomePage extends AppCompatActivity {
     private LinearLayout buttonContainer;
 
     private static final String TAG = "HomePage";
-    private static final String SERVER_URL = "http://192.168.1.9:5000/payment";
+    //private static final String SERVER_URL = "http://192.168.1.9:5000/payment";
+    private static final String SERVER_URL = "http://10.133.207.115:5000/payment";
+
     // For emulator testing, uncomment the line below and comment the above SERVER_URL
     // private static final String SERVER_URL = "http://10.0.2.2:5000/payment";
 
